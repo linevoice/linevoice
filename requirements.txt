@@ -1,5 +1,4 @@
 fastapi
 uvicorn
 fpdf
-pip install requests
-pip freeze > requirements.txt
+requests
