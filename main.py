@@ -1,32 +1,32 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+import os
+import json
+import requests
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from fpdf import FPDF
 import uvicorn
-import os
+
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
-# 入力データのスキーマ
-class InvoiceRequest(BaseModel):
-    recipient: str  # 宛名
-    amount: float  # 金額
-    description: str  # 但し書き
-    tax_type: str  # 税率タイプ（"内税10%", "内税8%", "外税10%", "外税8%"）
+LINE_ACCESS_TOKEN = "YOUR_LINE_ACCESS_TOKEN"
 
-# PDF作成関数
+class InvoiceRequest(BaseModel):
+    recipient: str
+    amount: float
+    description: str
+    tax_type: str
+
+# PDF作成関数（今のまま使う）
 def generate_invoice(data: InvoiceRequest):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", size=12)  # フォント変更（Arial → Helvetica）
+    pdf.set_font("Arial", size=12)
 
-    # ヘッダー
     pdf.cell(200, 10, txt="請求書", ln=True, align="C")
-
-    # 宛名
     pdf.cell(200, 10, txt=f"宛名: {data.recipient}", ln=True, align="L")
 
-    # 金額計算
     tax_rates = {
         "内税10%": 0.10,
         "内税8%": 0.08,
@@ -40,31 +40,91 @@ def generate_invoice(data: InvoiceRequest):
     tax_rate = tax_rates[data.tax_type]
 
     if "内税" in data.tax_type:
-        amount_ex_tax = data.amount / (1 + tax_rate)  # 内税の税抜き計算
+        amount_ex_tax = data.amount / (1 + tax_rate)
         tax_amount = data.amount - amount_ex_tax
         total_amount = data.amount
     else:
-        tax_amount = data.amount * tax_rate  # 外税の税額計算
+        tax_amount = data.amount * tax_rate
         total_amount = data.amount + tax_amount
 
-    # 金額詳細
     pdf.cell(200, 10, txt=f"金額: {amount_ex_tax:.2f} 円", ln=True, align="L")
     pdf.cell(200, 10, txt=f"消費税 ({data.tax_type}): {tax_amount:.2f} 円", ln=True, align="L")
     pdf.cell(200, 10, txt=f"合計金額: {total_amount:.2f} 円", ln=True, align="L")
-
-    # 但し書き
     pdf.cell(200, 10, txt=f"但し書き: {data.description}", ln=True, align="L")
 
-    # 一時フォルダ `/tmp/` に保存（Renderで安定して動作するように）
-    file_path = "/tmp/invoice.pdf"
+    file_path = "invoice.pdf"
     pdf.output(file_path)
     return file_path
 
-# APIエンドポイント（PDFをダウンロード可能にする）
 @app.post("/generate_invoice/")
 async def generate_invoice_endpoint(request: InvoiceRequest):
     file_path = generate_invoice(request)
-    return FileResponse(path=file_path, filename="invoice.pdf", media_type="application/pdf")
+    return FileResponse(file_path, media_type="application/pdf", filename="invoice.pdf")
+
+# ✅ LINEのWebhookを追加
+@app.post("/webhook")
+async def line_webhook(request: Request):
+    body = await request.body()
+    data = json.loads(body.decode("utf-8"))
+
+    for event in data.get("events", []):
+        if event["type"] == "message" and "text" in event["message"]:
+            user_id = event["source"]["userId"]
+            text = event["message"]["text"]
+
+            # ✅ ユーザーのメッセージから請求データを解析（例: "田中太郎, 10000, Web制作, 内税10%"）
+            try:
+                recipient, amount, description, tax_type = text.split(", ")
+                amount = float(amount)
+            except ValueError:
+                send_line_message(user_id, "入力形式が正しくありません。\n例: 田中太郎, 10000, Web制作, 内税10%")
+                continue
+
+            # ✅ PDFを作成
+            request_data = InvoiceRequest(
+                recipient=recipient,
+                amount=amount,
+                description=description,
+                tax_type=tax_type
+            )
+            file_path = generate_invoice(request_data)
+
+            # ✅ PDFを送信
+            send_line_pdf(user_id, file_path)
+
+    return {"message": "OK"}
+
+# ✅ LINEのメッセージ送信関数
+def send_line_message(user_id, text):
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
+    }
+    data = {
+        "to": user_id,
+        "messages": [{"type": "text", "text": text}]
+    }
+    requests.post(url, headers=headers, json=data)
+
+# ✅ LINEでPDFを送る関数
+def send_line_pdf(user_id, file_path):
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
+    }
+    files = {
+        "file": open(file_path, "rb")
+    }
+    data = {
+        "to": user_id,
+        "messages": [{
+            "type": "file",
+            "fileName": "invoice.pdf",
+            "fileSize": os.path.getsize(file_path)
+        }]
+    }
+    requests.post(url, headers=headers, files=files, json=data)
 
 # Uvicornで起動
 if __name__ == "__main__":
