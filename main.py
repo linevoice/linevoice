@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fpdf import FPDF
 import uvicorn
+import os
 
 app = FastAPI()
 
@@ -16,7 +18,7 @@ class InvoiceRequest(BaseModel):
 def generate_invoice(data: InvoiceRequest):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("Helvetica", size=12)  # フォント変更（Arial → Helvetica）
 
     # ヘッダー
     pdf.cell(200, 10, txt="請求書", ln=True, align="C")
@@ -53,16 +55,16 @@ def generate_invoice(data: InvoiceRequest):
     # 但し書き
     pdf.cell(200, 10, txt=f"但し書き: {data.description}", ln=True, align="L")
 
-    # ファイル保存
-    file_path = "invoice.pdf"
+    # 一時フォルダ `/tmp/` に保存（Renderで安定して動作するように）
+    file_path = "/tmp/invoice.pdf"
     pdf.output(file_path)
     return file_path
 
-# APIエンドポイント
+# APIエンドポイント（PDFをダウンロード可能にする）
 @app.post("/generate_invoice/")
 async def generate_invoice_endpoint(request: InvoiceRequest):
     file_path = generate_invoice(request)
-    return {"message": "請求書が作成されました", "file_path": file_path}
+    return FileResponse(path=file_path, filename="invoice.pdf", media_type="application/pdf")
 
 # Uvicornで起動
 if __name__ == "__main__":
