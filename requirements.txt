@@ -1,4 +1,2 @@
-Flask
-requests
-line-bot-sdk
-WeasyPrint
+flask
+fpdf
