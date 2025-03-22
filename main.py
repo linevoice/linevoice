@@ -8,6 +8,10 @@ app = Flask(__name__)
 
 logging.basicConfig(level=logging.DEBUG)
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "サクッと請求 API が動作しています。"}), 200
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
