@@ -1,4 +1,4 @@
-fastapi
-uvicorn
-fpdf
+Flask
 requests
+line-bot-sdk
+WeasyPrint
