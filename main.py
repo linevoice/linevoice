@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import json
 from invoice import generate_invoice
+import os
 
 app = Flask(__name__)
 
@@ -22,8 +23,6 @@ def webhook():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-import os
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # PORT がなければデフォルトで 5000
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ["PORT"])  # PORT を必ず環境変数から取得（デフォルト値なし）
+    app.run(host="0.0.0.0", port=port, debug=True)  # デバッグモードを有効にする
