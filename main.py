@@ -1,50 +1,50 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from fpdf import FPDF
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 
-SAVE_FOLDER = "invoices"
-os.makedirs(SAVE_FOLDER, exist_ok=True)
+# 保存先ディレクトリ
+OUTPUT_DIR = "invoices"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 @app.route("/", methods=["GET"])
 def home():
     return "API が動作しています！"
 
-@app.route("/invoice", methods=["POST"])
+@app.route("/invoice", methods=["GET", "POST"])
 def create_invoice():
-    """
-    請求書を生成するエンドポイント
-    """
-    data = request.json
-    if not data or "宛名" not in data or "金額" not in data or "但し書き" not in data:
-        return jsonify({"error": "不正なリクエスト"}), 400
+    if request.method == "GET":
+        return jsonify({"message": "請求書作成APIです。POSTで送信してください。"})
 
-    customer_name = data["宛名"]
-    amount = data["金額"]
-    description = data["但し書き"]
+    try:
+        # JSON データを取得
+        data = request.json
+        recipient = data.get("宛名", "不明")
+        amount = data.get("金額", "0")
+        description = data.get("但し書き", "記載なし")
 
-    invoice_id = len(os.listdir(SAVE_FOLDER)) + 1
-    pdf_filename = f"{SAVE_FOLDER}/invoice_{invoice_id}.pdf"
+        # ファイル名を生成
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"invoice_{timestamp}.pdf"
+        filepath = os.path.join(OUTPUT_DIR, filename)
 
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=16)
-    pdf.cell(200, 10, txt="請求書", ln=True, align="C")
-    pdf.ln(10)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"宛名: {customer_name}", ln=True)
-    pdf.cell(200, 10, txt=f"金額: ¥{amount}", ln=True)
-    pdf.cell(200, 10, txt=f"但し書き: {description}", ln=True)
+        # PDF を作成
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, "請求書", ln=True, align="C")
+        pdf.ln(10)
+        pdf.cell(200, 10, f"宛名: {recipient}", ln=True)
+        pdf.cell(200, 10, f"金額: ¥{amount}", ln=True)
+        pdf.cell(200, 10, f"但し書き: {description}", ln=True)
+        pdf.output(filepath)
 
-    pdf.output(pdf_filename)
+        return send_file(filepath, as_attachment=True)
 
-    return jsonify({
-        "status": "success",
-        "message": "請求書が作成されました。",
-        "invoice_url": f"https://your-service.onrender.com/{pdf_filename}"
-    })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=True)
