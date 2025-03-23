@@ -5,6 +5,10 @@ import os
 
 app = Flask(__name__)
 
+@app.route("/")
+def home():
+    return "サクッと請求 API が動作しています！"
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -24,5 +28,5 @@ def webhook():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))  # デフォルトを 8080 に変更
+    port = int(os.environ.get("PORT", 8080))  # ポートを8080に統一
     app.run(host="0.0.0.0", port=port, debug=True)
