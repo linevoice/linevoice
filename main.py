@@ -20,8 +20,8 @@ def home():
 @app.route("/invoice", methods=["POST"])
 def create_invoice():
     try:
-        # JSON データを取得
-        data = request.json
+        # JSON データを取得（エンコーディングの問題を回避）
+        data = request.get_json(force=True)
         if not data:
             return jsonify({"error": "リクエストボディが空です。JSONデータを送信してください。"}), 400
 
