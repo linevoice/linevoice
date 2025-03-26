@@ -13,17 +13,19 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def home():
     return "API が動作しています！"
 
-@app.route("/invoice", methods=["GET", "POST"])
+@app.route("/invoice", methods=["POST"])
 def create_invoice():
-    if request.method == "GET":
-        return jsonify({"message": "請求書作成APIです。POSTで送信してください。"})
-
     try:
         # JSON データを取得
-        data = request.json
-        recipient = data.get("宛名", "不明")
-        amount = data.get("金額", "0")
-        description = data.get("但し書き", "記載なし")
+        data = request.get_json()
+        print("受信データ:", data)  # デバッグ用
+
+        if not data or "宛名" not in data or "金額" not in data or "但し書き" not in data:
+            return jsonify({"error": "必要な情報が不足しています"}), 400
+
+        recipient = data["宛名"]
+        amount = data["金額"]
+        description = data["但し書き"]
 
         # ファイル名を生成
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -44,6 +46,7 @@ def create_invoice():
         return send_file(filepath, as_attachment=True)
 
     except Exception as e:
+        print("エラー:", str(e))  # デバッグ用
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
