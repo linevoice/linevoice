@@ -43,7 +43,7 @@ def create_invoice():
         pdf.cell(200, 10, f"但し書き: {description}", ln=True)
         pdf.output(filepath)
 
-        return send_file(filepath, as_attachment=True)
+        return send_file(filepath, as_attachment=True, download_name="invoice.pdf")
 
     except Exception as e:
         print("エラー:", str(e))  # デバッグ用
